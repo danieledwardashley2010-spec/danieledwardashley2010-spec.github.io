@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Users, Copy, Check, Play, RefreshCw, ArrowLeft, Share2, MapPin } from 'lucide-react';
+import { Users, Copy, Check, Play, RefreshCw, ArrowLeft, Share2, MapPin, X, Pencil, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { HuntConfig, TeamWithMembers } from '@/hunt/types';
 import { THEME_LABELS, OCCASION_LABELS, generateTeamOrderings, getFinishLocation } from '@/hunt/builder';
 import { LOCATIONS } from '@/hunt/locations';
+import { removeMember, removeTeam, renameTeam, renameMember } from '@/lib/hostApi';
 
 interface Props {
   huntId: string;
@@ -20,6 +21,10 @@ export default function LobbyScreen({ huntId, huntCode, hostId, config, isHost, 
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [sideQuestCount, setSideQuestCount] = useState(0);
 
   const fetchTeams = useCallback(async () => {
     const { data } = await supabase
@@ -31,8 +36,17 @@ export default function LobbyScreen({ huntId, huntCode, hostId, config, isHost, 
     setLoading(false);
   }, [huntId]);
 
+  const fetchSideQuestCount = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('side_quests')
+      .select('id', { count: 'exact' })
+      .eq('hunt_id', huntId);
+    if (!error && data) setSideQuestCount((data as unknown[]).length);
+  }, [huntId]);
+
   useEffect(() => {
     fetchTeams();
+    fetchSideQuestCount();
     const channel = supabase
       .channel(`lobby-${huntId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', filter: `hunt_id=eq.${huntId}` }, () => fetchTeams())
@@ -46,7 +60,7 @@ export default function LobbyScreen({ huntId, huntCode, hostId, config, isHost, 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [huntId, fetchTeams, onStart]);
+  }, [huntId, fetchTeams, fetchSideQuestCount, onStart]);
 
   const shareUrl = `${window.location.origin}?join=${huntCode}`;
   const shareText = `Join my Liverpool scavenger hunt! Code: ${huntCode}`;
@@ -79,7 +93,6 @@ export default function LobbyScreen({ huntId, huntCode, hostId, config, isHost, 
       : LOCATIONS;
     const orderings = generateTeamOrderings(pool, teams.length);
 
-    // Assign orderings to teams
     for (let i = 0; i < teams.length; i++) {
       const ordering = orderings[i % orderings.length];
       const stops = ordering.map((loc, idx) => ({
@@ -94,6 +107,40 @@ export default function LobbyScreen({ huntId, huntCode, hostId, config, isHost, 
     await supabase.from('hunts').update({ status: 'active', started_at: new Date().toISOString() }).eq('id', huntId);
     setStarting(false);
     onStart();
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!isHost) return;
+    await removeMember(huntId, hostId, memberId);
+    fetchTeams();
+  };
+
+  const handleRemoveTeam = async (teamId: string) => {
+    if (!isHost) return;
+    await removeTeam(huntId, hostId, teamId);
+    fetchTeams();
+  };
+
+  const handleSaveTeamName = async (teamId: string) => {
+    if (!editValue.trim()) {
+      setEditingTeamId(null);
+      return;
+    }
+    await renameTeam(huntId, hostId, teamId, editValue.trim());
+    setEditingTeamId(null);
+    setEditValue('');
+    fetchTeams();
+  };
+
+  const handleSaveMemberName = async (memberId: string) => {
+    if (!editValue.trim()) {
+      setEditingMemberId(null);
+      return;
+    }
+    await renameMember(huntId, hostId, memberId, editValue.trim());
+    setEditingMemberId(null);
+    setEditValue('');
+    fetchTeams();
   };
 
   const finishName = getFinishLocation(config).name;
@@ -145,6 +192,19 @@ export default function LobbyScreen({ huntId, huntCode, hostId, config, isHost, 
           </p>
         </div>
 
+        {/* Side quest preview */}
+        {sideQuestCount > 0 && (
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400 text-stone-900">
+              <Star className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-stone-900">{sideQuestCount} side quests included</div>
+              <div className="text-xs text-stone-600">Bonus challenges teams can complete during the hunt for extra points.</div>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-stone-500">
             <Users className="h-4 w-4" />
@@ -154,6 +214,12 @@ export default function LobbyScreen({ huntId, huntCode, hostId, config, isHost, 
             <RefreshCw className="h-4 w-4" />
           </button>
         </div>
+
+        {isHost && (
+          <p className="mt-2 text-xs text-stone-500">
+            As host you can rename teams and players, or remove anyone who shouldn't be here.
+          </p>
+        )}
 
         {loading ? (
           <div className="py-12 text-center text-stone-400">Loading teams...</div>
@@ -169,17 +235,88 @@ export default function LobbyScreen({ huntId, huntCode, hostId, config, isHost, 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-4 w-4 rounded-full" style={{ backgroundColor: team.color }} />
-                    <span className="font-semibold">{team.name}</span>
+                    {editingTeamId === team.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveTeamName(team.id)}
+                          className="rounded-lg border-2 border-stone-300 px-2 py-1 text-sm font-semibold outline-none focus:border-stone-900"
+                          autoFocus
+                        />
+                        <button onClick={() => handleSaveTeamName(team.id)} className="text-xs font-bold text-stone-900">Save</button>
+                      </div>
+                    ) : (
+                      <span className="font-semibold">{team.name}</span>
+                    )}
                   </div>
-                  <span className="text-sm text-stone-500">
-                    {team.team_members?.length ?? 0} {team.team_members?.length === 1 ? 'player' : 'players'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-stone-500">
+                      {team.team_members?.length ?? 0} {team.team_members?.length === 1 ? 'player' : 'players'}
+                    </span>
+                    {isHost && (
+                      <div className="flex items-center gap-1">
+                        {editingTeamId !== team.id && (
+                          <button
+                            onClick={() => { setEditingTeamId(team.id); setEditValue(team.name); }}
+                            className="rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-900"
+                            title="Rename team"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleRemoveTeam(team.id)}
+                          className="rounded-lg p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600"
+                          title="Remove team"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {team.team_members && team.team_members.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {team.team_members.map((m) => (
-                      <span key={m.id} className="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-600">
-                        {m.display_name}
+                      <span
+                        key={m.id}
+                        className="group flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-600"
+                      >
+                        {editingMemberId === m.id ? (
+                          <span className="flex items-center gap-1">
+                            <input
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSaveMemberName(m.id)}
+                              className="w-20 rounded border border-stone-300 px-1 py-0.5 text-xs outline-none focus:border-stone-900"
+                              autoFocus
+                            />
+                            <button onClick={() => handleSaveMemberName(m.id)} className="text-xs font-bold text-stone-900">OK</button>
+                          </span>
+                        ) : (
+                          <>
+                            {m.display_name}
+                            {isHost && (
+                              <span className="ml-1 flex items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+                                <button
+                                  onClick={() => { setEditingMemberId(m.id); setEditValue(m.display_name); }}
+                                  className="text-stone-400 hover:text-stone-900"
+                                  title="Rename"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveMember(m.id)}
+                                  className="text-stone-400 hover:text-red-600"
+                                  title="Remove"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            )}
+                          </>
+                        )}
                       </span>
                     ))}
                   </div>

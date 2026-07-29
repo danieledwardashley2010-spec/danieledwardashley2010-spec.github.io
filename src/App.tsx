@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import type { HuntConfig } from '@/hunt/types';
 import { supabase } from '@/lib/supabase';
 import { pickHuntStops, generateHuntCode, generateHostId, defaultFinalMessage } from '@/hunt/builder';
+import { seedSideQuests } from '@/lib/hostApi';
+import {
+  saveHostSession,
+  loadHostSession,
+  clearHostSession,
+  savePlayerSession,
+  loadPlayerSession,
+  clearPlayerSession,
+} from '@/lib/session';
 import HomeScreen from '@/components/HomeScreen';
 import SetupScreen from '@/components/SetupScreen';
 import LobbyScreen from '@/components/LobbyScreen';
@@ -30,16 +39,96 @@ function App() {
   const [huntState, setHuntState] = useState<HuntState | null>(null);
   const [joinState, setJoinState] = useState<JoinState | null>(null);
   const [joinCode, setJoinCode] = useState<string>('');
+  const [restoring, setRestoring] = useState(true);
 
-  // Check URL for join code on mount
+  // ---- Restore session on mount (reload / phone off / phone back on) ----
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('join');
-    if (code) {
-      setJoinCode(code.toUpperCase());
-      setScreen('join');
-    }
+    const restore = async () => {
+      // First check URL for join code
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('join');
+      if (code) {
+        setJoinCode(code.toUpperCase());
+        setScreen('join');
+        setRestoring(false);
+        return;
+      }
+
+      // Try restoring a player session
+      const playerSession = loadPlayerSession();
+      if (playerSession) {
+        const restored = await restoreHunt(
+          playerSession.huntId,
+          playerSession.huntCode,
+          '',
+          playerSession.teamId,
+          playerSession.teamName,
+          playerSession.memberId
+        );
+        if (restored) {
+          setRestoring(false);
+          return;
+        }
+        clearPlayerSession();
+      }
+
+      // Try restoring a host session
+      const hostSession = loadHostSession();
+      if (hostSession) {
+        const restored = await restoreHunt(
+          hostSession.huntId,
+          hostSession.huntCode,
+          hostSession.hostId,
+          '',
+          '',
+          ''
+        );
+        if (restored) {
+          setRestoring(false);
+          return;
+        }
+        clearHostSession();
+      }
+
+      setRestoring(false);
+    };
+    restore();
   }, []);
+
+  const restoreHunt = async (
+    huntId: string,
+    huntCode: string,
+    hostId: string,
+    teamId: string,
+    teamName: string,
+    memberId: string
+  ): Promise<boolean> => {
+    const { data: huntData, error } = await supabase
+      .from('hunts')
+      .select('config, status')
+      .eq('id', huntId)
+      .maybeSingle();
+
+    if (error || !huntData) return false;
+
+    const config = (huntData as { config: HuntConfig }).config;
+    const status = (huntData as { status: string }).status;
+
+    setHuntState({ huntId, huntCode, hostId, config });
+
+    if (teamId) {
+      setJoinState({ teamId, teamName, memberId, config });
+    }
+
+    if (status === 'active') {
+      setScreen('hunt');
+    } else if (status === 'finished') {
+      setScreen('finish');
+    } else {
+      setScreen('lobby');
+    }
+    return true;
+  };
 
   // ---- Host flow ----
   const handleCreate = () => setScreen('setup');
@@ -75,8 +164,15 @@ function App() {
       return;
     }
 
+    const newHuntId = (data as { id: string }).id;
+
+    // Seed side quests for this hunt
+    await seedSideQuests(newHuntId, finalConfig);
+
+    saveHostSession({ huntId: newHuntId, huntCode: code, hostId, config: finalConfig });
+
     setHuntState({
-      huntId: (data as { id: string }).id,
+      huntId: newHuntId,
       huntCode: code,
       hostId,
       config: finalConfig,
@@ -95,7 +191,6 @@ function App() {
   };
 
   const handleJoined = async (teamId: string, teamName: string, memberId: string) => {
-    // Fetch the hunt config for this team's hunt
     const { data: teamData } = await supabase
       .from('teams')
       .select('hunt_id')
@@ -122,6 +217,8 @@ function App() {
       config,
     });
 
+    savePlayerSession({ teamId, teamName, memberId, huntId, huntCode: joinCode });
+
     if (status === 'active') {
       setScreen('hunt');
     } else if (status === 'finished') {
@@ -143,6 +240,8 @@ function App() {
 
   // ---- Navigation helpers ----
   const goHome = () => {
+    clearHostSession();
+    clearPlayerSession();
     setHuntState(null);
     setJoinState(null);
     setJoinCode('');
@@ -153,6 +252,14 @@ function App() {
   const goSetup = () => setScreen('setup');
 
   // ---- Render ----
+  if (restoring) {
+    return (
+      <div className="min-h-screen bg-stone-50 text-stone-900">
+        <div className="flex min-h-screen items-center justify-center text-stone-400">Loading your hunt...</div>
+      </div>
+    );
+  }
+
   if (screen === 'finish' && huntState) {
     return (
       <FinishScreen

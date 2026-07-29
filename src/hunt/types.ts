@@ -89,7 +89,28 @@ export interface TeamStop {
   verified_at: string | null;
 }
 
+export interface SideQuest {
+  id: string;
+  hunt_id: string;
+  quest_key: string;
+  title: string;
+  description: string;
+  prompt: string;
+  category: string;
+  points: number;
+}
+
+export interface TeamSideQuest {
+  id: string;
+  team_id: string;
+  side_quest_id: string;
+  completed: boolean;
+  answer: string | null;
+  completed_at: string | null;
+}
+
 export interface TeamWithMembers extends Team {
   team_members: TeamMember[];
   team_stops: TeamStop[];
+  team_side_quests?: TeamSideQuest[];
 }

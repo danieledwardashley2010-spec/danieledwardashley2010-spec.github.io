@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { MapPin, Navigation, CheckCircle2, Eye, Compass, Trophy, Users, Crosshair, AlertCircle } from 'lucide-react';
+import { MapPin, Navigation, CheckCircle2, Eye, Compass, Trophy, Users, Crosshair, AlertCircle, Star, Camera, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { distanceMeters, formatDistance, VERIFY_RADIUS_M } from '@/lib/geo';
-import type { HuntConfig, TeamStop, TeamWithMembers } from '@/hunt/types';
+import type { HuntConfig, TeamStop, TeamWithMembers, SideQuest, TeamSideQuest } from '@/hunt/types';
 import { LOCATIONS } from '@/hunt/locations';
 import { THEME_LABELS, getFinishLocation } from '@/hunt/builder';
 
@@ -23,11 +23,22 @@ interface TeamProgress {
   verifiedCount: number;
   totalStops: number;
   finished: boolean;
+  bonusPoints: number;
 }
+
+const CATEGORY_ICONS: Record<string, typeof Star> = {
+  photo: Camera,
+  trivia: Star,
+  action: Compass,
+  creative: Star,
+  social: Users,
+};
 
 export default function HuntScreen({ huntId, teamId, teamName, memberId, config, onFinish, onLeave }: Props) {
   const [stops, setStops] = useState<TeamStop[]>([]);
   const [allTeams, setAllTeams] = useState<TeamProgress[]>([]);
+  const [sideQuests, setSideQuests] = useState<SideQuest[]>([]);
+  const [teamSideQuests, setTeamSideQuests] = useState<TeamSideQuest[]>([]);
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -35,6 +46,9 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
   const [distToTarget, setDistToTarget] = useState<number | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [huntFinished, setHuntFinished] = useState(false);
+  const [questsExpanded, setQuestsExpanded] = useState(false);
+  const [questAnswers, setQuestAnswers] = useState<Record<string, string>>({});
+  const [submittingQuest, setSubmittingQuest] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
 
   const currentStep = stops.findIndex((s) => !s.verified);
@@ -67,38 +81,74 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
     setLoading(false);
   }, [teamId, huntFinished, onFinish]);
 
+  const fetchSideQuests = useCallback(async () => {
+    const { data: quests } = await supabase
+      .from('side_quests')
+      .select('*')
+      .eq('hunt_id', huntId);
+    if (quests) setSideQuests(quests as SideQuest[]);
+
+    const { data: tsq } = await supabase
+      .from('team_side_quests')
+      .select('*')
+      .eq('team_id', teamId);
+    if (tsq) setTeamSideQuests(tsq as TeamSideQuest[]);
+  }, [huntId, teamId]);
+
   const fetchAllTeams = useCallback(async () => {
     const { data } = await supabase
       .from('teams')
-      .select('*, team_stops(*)')
+      .select('*, team_stops(*), team_side_quests(*)')
       .eq('hunt_id', huntId);
     if (data) {
-      const progress: TeamProgress[] = (data as TeamWithMembers[]).map((t) => ({
-        teamId: t.id,
-        teamName: t.name,
-        color: t.color,
-        verifiedCount: t.team_stops?.filter((s) => s.verified).length ?? 0,
-        totalStops: t.team_stops?.length ?? 0,
-        finished: (t.team_stops?.length ?? 0) > 0 && (t.team_stops?.every((s) => s.verified) ?? false),
-      }));
-      progress.sort((a, b) => b.verifiedCount - a.verifiedCount);
+      const teams = data as TeamWithMembers[];
+      const progress: TeamProgress[] = teams.map((t) => {
+        const tStops = t.team_stops ?? [];
+        const verifiedCount = tStops.filter((s) => s.verified).length;
+        const finished = tStops.length > 0 && tStops.every((s) => s.verified);
+        const tsq = t.team_side_quests ?? [];
+        const bonusPoints = tsq
+          .filter((q) => q.completed)
+          .reduce((sum, q) => {
+            const quest = (sideQuests as SideQuest[]).find((sq) => sq.id === q.side_quest_id);
+            return sum + (quest?.points ?? 0);
+          }, 0);
+        return {
+          teamId: t.id,
+          teamName: t.name,
+          color: t.color,
+          verifiedCount,
+          totalStops: tStops.length,
+          finished,
+          bonusPoints,
+        };
+      });
+      progress.sort((a, b) => {
+        if (b.verifiedCount !== a.verifiedCount) return b.verifiedCount - a.verifiedCount;
+        return b.bonusPoints - a.bonusPoints;
+      });
       setAllTeams(progress);
     }
-  }, [huntId]);
+  }, [huntId, sideQuests]);
 
   useEffect(() => {
     fetchStops();
+    fetchSideQuests();
     fetchAllTeams();
     const channel = supabase
       .channel(`hunt-${huntId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_stops', filter: `team_id=eq.${teamId}` }, () => fetchStops())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_stops' }, () => fetchAllTeams())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', filter: `hunt_id=eq.${huntId}` }, () => fetchAllTeams())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'team_side_quests' }, () => {
+        fetchSideQuests();
+        fetchAllTeams();
+      })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [huntId, teamId, fetchStops, fetchAllTeams]);
+  }, [huntId, teamId, fetchStops, fetchAllTeams, fetchSideQuests]);
 
   // GPS watching
   useEffect(() => {
@@ -163,6 +213,35 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
     );
   };
 
+  const handleCompleteQuest = async (questId: string) => {
+    const answer = questAnswers[questId]?.trim();
+    if (!answer) return;
+    setSubmittingQuest(questId);
+
+    const existing = teamSideQuests.find((q) => q.side_quest_id === questId);
+    if (existing) {
+      await supabase
+        .from('team_side_quests')
+        .update({ completed: true, answer, completed_at: new Date().toISOString() })
+        .eq('id', existing.id);
+    } else {
+      await supabase
+        .from('team_side_quests')
+        .insert({
+          team_id: teamId,
+          side_quest_id: questId,
+          completed: true,
+          answer,
+          completed_at: new Date().toISOString(),
+        });
+    }
+
+    setSubmittingQuest(null);
+    setQuestAnswers({ ...questAnswers, [questId]: '' });
+    fetchSideQuests();
+    fetchAllTeams();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-50 text-stone-900">
@@ -185,6 +264,8 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
 
   const finishName = getFinishLocation(config).name;
   const isFinalStop = currentStop?.order_index === stops.length - 1;
+  const completedQuests = teamSideQuests.filter((q) => q.completed).length;
+  const totalQuests = sideQuests.length;
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900">
@@ -227,6 +308,12 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
                 <span className={`flex-1 text-sm ${t.teamId === teamId ? 'font-bold' : 'text-stone-600'}`}>
                   {t.teamName} {t.teamId === teamId && '(you)'}
                 </span>
+                {t.bonusPoints > 0 && (
+                  <span className="flex items-center gap-0.5 text-xs text-amber-600">
+                    <Star className="h-3 w-3" />
+                    {t.bonusPoints}
+                  </span>
+                )}
                 <span className="text-sm text-stone-500">
                   {t.verifiedCount}/{t.totalStops}
                   {t.finished && <CheckCircle2 className="ml-1 inline h-3.5 w-3.5 text-green-600" />}
@@ -266,6 +353,91 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
             )}
           </div>
         </div>
+
+        {/* Side quests */}
+        {sideQuests.length > 0 && (
+          <div className="mt-6 overflow-hidden rounded-3xl border border-amber-200 bg-amber-50/50 shadow-sm">
+            <button
+              onClick={() => setQuestsExpanded(!questsExpanded)}
+              className="flex w-full items-center justify-between p-5"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-400 text-stone-900">
+                  <Star className="h-4 w-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-sm font-bold text-stone-900">Side quests</div>
+                  <div className="text-xs text-stone-500">
+                    {completedQuests}/{totalQuests} done · earn bonus points
+                  </div>
+                </div>
+              </div>
+              {questsExpanded ? <ChevronUp className="h-5 w-5 text-stone-400" /> : <ChevronDown className="h-5 w-5 text-stone-400" />}
+            </button>
+
+            {questsExpanded && (
+              <div className="space-y-3 px-5 pb-5">
+                {sideQuests.map((quest) => {
+                  const tsq = teamSideQuests.find((q) => q.side_quest_id === quest.id);
+                  const isDone = tsq?.completed ?? false;
+                  const Icon = CATEGORY_ICONS[quest.category] ?? Star;
+                  return (
+                    <div
+                      key={quest.id}
+                      className={`rounded-2xl border-2 p-4 transition ${
+                        isDone ? 'border-green-300 bg-green-50' : 'border-stone-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
+                            isDone ? 'bg-green-500 text-white' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-stone-900">{quest.title}</span>
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                                +{quest.points} pts
+                              </span>
+                            </div>
+                            <p className="mt-1 text-sm text-stone-600">{quest.prompt}</p>
+                          </div>
+                        </div>
+                        {isDone && <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-green-600" />}
+                      </div>
+
+                      {!isDone && (
+                        <div className="mt-3 flex gap-2">
+                          <input
+                            value={questAnswers[quest.id] ?? ''}
+                            onChange={(e) => setQuestAnswers({ ...questAnswers, [quest.id]: e.target.value })}
+                            placeholder="Write your answer..."
+                            className="flex-1 rounded-xl border-2 border-stone-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-stone-900"
+                          />
+                          <button
+                            onClick={() => handleCompleteQuest(quest.id)}
+                            disabled={!questAnswers[quest.id]?.trim() || submittingQuest === quest.id}
+                            className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-40"
+                          >
+                            {submittingQuest === quest.id ? '...' : 'Done'}
+                          </button>
+                        </div>
+                      )}
+
+                      {isDone && tsq?.answer && (
+                        <div className="mt-2 rounded-xl bg-green-50 px-3 py-2 text-sm text-green-800">
+                          <span className="font-medium">Your answer:</span> {tsq.answer}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* GPS verification */}
         <div className="mt-6 rounded-3xl border-2 border-stone-200 bg-white p-6 shadow-sm">

@@ -1,4 +1,29 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+
+type DeviceType = 'mobile' | 'tablet' | 'desktop';
+
+function useDeviceType(): DeviceType {
+  const [device, setDevice] = useState<DeviceType>(() => {
+    if (typeof window === 'undefined') return 'desktop';
+    const w = window.innerWidth;
+    if (w < 640) return 'mobile';
+    if (w < 1024) return 'tablet';
+    return 'desktop';
+  });
+
+  useEffect(() => {
+    const handler = () => {
+      const w = window.innerWidth;
+      if (w < 640) setDevice('mobile');
+      else if (w < 1024) setDevice('tablet');
+      else setDevice('desktop');
+    };
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  return device;
+}
 import {
   Compass,
   Users,
@@ -230,13 +255,27 @@ function NarrationBar({
 /*  Mock phone frame                                                   */
 /* ------------------------------------------------------------------ */
 
-function PhoneFrame({ children }: { children: React.ReactNode }) {
+function PhoneFrame({ children, device }: { children: React.ReactNode; device: DeviceType }) {
+  if (device === 'mobile') {
+    return (
+      <div className="min-h-screen bg-stone-50">
+        <div className="relative h-[calc(100vh-3rem)] overflow-y-auto">{children}</div>
+      </div>
+    );
+  }
+
+  const frameWidth = device === 'tablet' ? 'max-w-md' : 'max-w-sm';
+  const frameHeight = device === 'tablet' ? 'h-[680px]' : 'h-[600px]';
+  const bezel = device === 'tablet' ? 'border-[10px]' : 'border-[6px]';
+  const radius = device === 'tablet' ? 'rounded-[3rem]' : 'rounded-[2.5rem]';
+  const notchWidth = device === 'tablet' ? 'w-32' : 'w-28';
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-stone-900 px-4 py-8">
-      <div className="relative w-full max-w-sm">
-        <div className="relative overflow-hidden rounded-[2.5rem] border-[6px] border-stone-700 bg-stone-50 shadow-2xl">
-          <div className="absolute left-1/2 top-0 z-30 h-5 w-28 -translate-x-1/2 rounded-b-2xl bg-stone-700" />
-          <div className="h-[600px] overflow-y-auto">{children}</div>
+      <div className={`relative w-full ${frameWidth}`}>
+        <div className={`relative overflow-hidden ${radius} ${bezel} border-stone-700 bg-stone-50 shadow-2xl`}>
+          <div className={`absolute left-1/2 top-0 z-30 h-5 ${notchWidth} -translate-x-1/2 rounded-b-2xl bg-stone-700`} />
+          <div className={`${frameHeight} overflow-y-auto`}>{children}</div>
         </div>
       </div>
     </div>
@@ -1024,6 +1063,7 @@ interface Props {
 }
 
 export default function TourMode({ onExit }: Props) {
+  const device = useDeviceType();
   const [stepIndex, setStepIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -1123,7 +1163,7 @@ export default function TourMode({ onExit }: Props) {
 
       {/* Phone mock */}
       <div className="pt-12">
-        <PhoneFrame>{renderScreen()}</PhoneFrame>
+        <PhoneFrame device={device}>{renderScreen()}</PhoneFrame>
       </div>
 
       {/* Narration controls */}

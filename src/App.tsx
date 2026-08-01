@@ -17,6 +17,7 @@ import LobbyScreen from '@/components/LobbyScreen';
 import JoinScreen from '@/components/JoinScreen';
 import HuntScreen from '@/components/HuntScreen';
 import FinishScreen from '@/components/FinishScreen';
+import TourMode from '@/components/TourMode';
 
 type Screen = 'home' | 'setup' | 'lobby' | 'join' | 'hunt' | 'finish';
 
@@ -40,6 +41,7 @@ function App() {
   const [joinState, setJoinState] = useState<JoinState | null>(null);
   const [joinCode, setJoinCode] = useState<string>('');
   const [restoring, setRestoring] = useState(true);
+  const [tourMode, setTourMode] = useState(false);
 
   // ---- Restore session on mount (reload / phone off / phone back on) ----
   useEffect(() => {
@@ -309,7 +311,11 @@ function App() {
     return <SetupScreen onCreate={handleSetupComplete} onBack={goHome} />;
   }
 
-  return <HomeScreen onCreate={handleCreate} onJoin={handleJoin} />;
+  if (tourMode) {
+    return <TourMode onExit={() => setTourMode(false)} />;
+  }
+
+  return <HomeScreen onCreate={handleCreate} onJoin={handleJoin} onStartTour={() => setTourMode(true)} />;
 }
 
 export default App;

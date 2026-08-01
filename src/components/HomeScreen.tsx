@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { MapPin, Compass, Users, ArrowRight } from 'lucide-react';
+import { MapPin, Compass, Users, ArrowRight, PlayCircle } from 'lucide-react';
 
 interface Props {
   onCreate: () => void;
   onJoin: (code: string) => void;
+  onStartTour: () => void;
 }
 
-export default function HomeScreen({ onCreate, onJoin }: Props) {
+export default function HomeScreen({ onCreate, onJoin, onStartTour }: Props) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
 
@@ -88,6 +89,14 @@ export default function HomeScreen({ onCreate, onJoin }: Props) {
             </button>
           </div>
         </div>
+
+        <button
+          onClick={onStartTour}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-amber-300 bg-amber-50 py-4 font-semibold text-amber-900 transition hover:bg-amber-100"
+        >
+          <PlayCircle className="h-5 w-5" />
+          Take a guided tour
+        </button>
       </div>
     </div>
   );

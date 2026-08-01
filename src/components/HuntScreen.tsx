@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { MapPin, Navigation, CheckCircle2, Compass, Trophy, Users, Crosshair, AlertCircle, Star, Camera, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, Navigation, CheckCircle2, Compass, Trophy, Users, Crosshair, AlertCircle, Star, Camera, ChevronDown, ChevronUp, Send, Lightbulb } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { distanceMeters, formatDistance, VERIFY_RADIUS_M } from '@/lib/geo';
+import { distanceMeters, formatDistance, bearing, compassDirection, VERIFY_RADIUS_M } from '@/lib/geo';
 import type { HuntConfig, TeamStop, TeamWithMembers, SideQuest, TeamSideQuest } from '@/hunt/types';
 import { LOCATIONS } from '@/hunt/locations';
 import { THEME_LABELS, getFinishLocation } from '@/hunt/builder';
@@ -44,6 +44,10 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'checking' | 'success' | 'failed' | 'denied'>('idle');
   const [distToTarget, setDistToTarget] = useState<number | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [guess, setGuess] = useState('');
+  const [guessError, setGuessError] = useState(false);
+  const [solved, setSolved] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   const [huntFinished, setHuntFinished] = useState(false);
   const [questsExpanded, setQuestsExpanded] = useState(false);
   const [questAnswers, setQuestAnswers] = useState<Record<string, string>>({});
@@ -173,6 +177,29 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
       }
     };
   }, [currentLocation?.id]);
+
+  // Reset solve state when moving to a new stop
+  useEffect(() => {
+    setSolved(false);
+    setGuess('');
+    setGuessError(false);
+    setShowHint(false);
+  }, [currentStop?.id]);
+
+  const handleGuess = () => {
+    if (!currentLocation) return;
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const target = normalize(currentLocation.name);
+    const input = normalize(guess);
+    if (!input) return;
+    const match = target === input || target.includes(input) || input.includes(target);
+    if (match) {
+      setSolved(true);
+      setGuessError(false);
+    } else {
+      setGuessError(true);
+    }
+  };
 
   const handleVerify = async () => {
     if (!currentStop || !currentLocation) return;
@@ -333,12 +360,86 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
             </p>
           </div>
 
-          <div className="p-6">
-            <p className="text-sm text-stone-500">
-              Solve the clue, find the spot, and verify with GPS when you arrive. No hints — that is the whole point.
-            </p>
-          </div>
         </div>
+
+        {/* Name guess / directions */}
+        {!solved ? (
+          <div className="mt-6 rounded-3xl border-2 border-stone-200 bg-white p-6 shadow-sm">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+              <Lightbulb className="h-5 w-5 text-amber-500" />
+              Worked it out?
+            </h3>
+            <p className="mt-2 text-sm text-stone-600">
+              Type the name of the place you think the clue points to. Get it right to unlock directions and GPS verification.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <input
+                value={guess}
+                onChange={(e) => { setGuess(e.target.value); setGuessError(false); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleGuess()}
+                placeholder="e.g. St George's Hall"
+                className={`flex-1 rounded-xl border-2 bg-white px-4 py-3 text-sm outline-none transition focus:border-stone-900 ${
+                  guessError ? 'border-red-400 bg-red-50' : 'border-stone-200'
+                }`}
+              />
+              <button
+                onClick={handleGuess}
+                disabled={!guess.trim()}
+                className="flex items-center gap-1.5 rounded-xl bg-stone-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-40"
+              >
+                <Send className="h-4 w-4" />
+                Check
+              </button>
+            </div>
+            {guessError && (
+              <p className="mt-2 text-sm text-red-600">Not quite. Read the clue again and try once more.</p>
+            )}
+            <button
+              onClick={() => setShowHint((s) => !s)}
+              className="mt-3 text-xs font-medium text-stone-400 hover:text-stone-700"
+            >
+              {showHint ? 'Hide hint' : 'Need a hint?'}
+            </button>
+            {showHint && (
+              <p className="mt-2 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">
+                {currentLocation?.feature}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="mt-6 animate-fadeIn rounded-3xl border-2 border-green-300 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <h3 className="text-sm font-bold text-stone-900">{currentLocation?.name}</h3>
+            </div>
+            <p className="mt-2 text-sm text-stone-600">{currentLocation?.reveal}</p>
+            {userPos && distToTarget !== null && (
+              <div className="mt-4 flex items-center gap-3 rounded-xl bg-stone-50 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-900 text-white">
+                  <Navigation
+                    className="h-5 w-5"
+                    style={{ transform: `rotate(${bearing(userPos.lat, userPos.lng, currentLocation!.lat, currentLocation!.lng)}deg)` }}
+                  />
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs text-stone-500">
+                    {compassDirection(bearing(userPos.lat, userPos.lng, currentLocation!.lat, currentLocation!.lng))} · {formatDistance(distToTarget)}
+                  </div>
+                  <div className="text-sm font-semibold text-stone-900">Head that way</div>
+                </div>
+              </div>
+            )}
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${currentLocation!.lat},${currentLocation!.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-stone-100 py-3 text-sm font-semibold text-stone-900 transition hover:bg-stone-200"
+            >
+              <MapPin className="h-4 w-4" />
+              Open in Google Maps
+            </a>
+          </div>
+        )}
 
         {/* Side quests */}
         {sideQuests.length > 0 && (
@@ -426,6 +527,7 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
         )}
 
         {/* GPS verification */}
+        {solved && (
         <div className="mt-6 rounded-3xl border-2 border-stone-200 bg-white p-6 shadow-sm">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-stone-900">
             <Crosshair className="h-5 w-5" />
@@ -486,6 +588,7 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
             Your phone's GPS checks you're within {VERIFY_RADIUS_M}m of the spot.
           </p>
         </div>
+        )}
 
         <div className="mt-6 rounded-2xl bg-stone-100 p-4 text-sm text-stone-600">
           <div className="flex items-center gap-2">

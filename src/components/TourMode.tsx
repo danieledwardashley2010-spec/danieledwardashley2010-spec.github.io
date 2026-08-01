@@ -32,6 +32,8 @@ import {
   AlertCircle,
   Home,
   RotateCcw,
+  Send,
+  Lightbulb,
 } from 'lucide-react';
 import type { HuntConfig } from '@/hunt/types';
 import { THEME_LABELS } from '@/hunt/builder';
@@ -85,14 +87,14 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'hunt-clue',
     title: 'Follow the clues',
-    narration: 'Each stop starts with a riddle. Stuck? Reveal where you are headed. The live leaderboard shows how every team is doing.',
-    duration: 6500,
+    narration: 'Each stop starts with a riddle. Type the name of the place you think it points to. Get it right to unlock directions and GPS verification.',
+    duration: 7000,
   },
   {
     id: 'hunt-gps',
-    title: 'GPS verification',
-    narration: 'When a team arrives, their phone confirms they are within range of the spot. No QR codes, no check-ins — just location.',
-    duration: 5500,
+    title: 'Prove you got there',
+    narration: 'Once you have cracked the clue, follow the compass to the spot. Your phone confirms you are within range, and the stop is verified.',
+    duration: 6000,
   },
   {
     id: 'hunt-quests',
@@ -687,23 +689,21 @@ function MockHuntClue() {
 
         <div className="mt-5 rounded-2xl border-2 border-stone-200 bg-white p-5 shadow-sm">
           <h3 className="flex items-center gap-1.5 text-xs font-semibold text-stone-900">
-            <Crosshair className="h-4 w-4" />
-            GPS verification
+            <Lightbulb className="h-4 w-4 text-amber-500" />
+            Worked it out?
           </h3>
-          <div className="mt-3 flex items-center justify-between rounded-lg bg-stone-50 p-3">
-            <div className="flex items-center gap-1.5 text-xs text-stone-600">
-              <Navigation className="h-3.5 w-3.5" />
-              Distance to target
-            </div>
-            <div className="text-base font-bold text-stone-900">320m</div>
-          </div>
-          <div className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-stone-900 py-3.5 text-sm font-semibold text-white shadow-lg">
-            <CheckCircle2 className="h-4 w-4" />
-            We've found it
-          </div>
-          <p className="mt-2.5 text-center text-[10px] text-stone-400">
-            Your phone's GPS checks you're within 50m of the spot.
+          <p className="mt-1.5 text-[11px] text-stone-600">
+            Type the name of the place you think the clue points to.
           </p>
+          <div className="mt-3 flex gap-2">
+            <div className="flex-1 rounded-lg border-2 border-stone-200 bg-white px-3 py-2.5 text-[11px] text-stone-400">
+              e.g. St George's Hall
+            </div>
+            <div className="flex items-center gap-1 rounded-lg bg-stone-900 px-3 py-2.5 text-[11px] font-semibold text-white">
+              <Send className="h-3.5 w-3.5" />
+              Check
+            </div>
+          </div>
         </div>
       </main>
     </div>
@@ -749,6 +749,27 @@ function MockHuntGps() {
             <p className="text-sm text-stone-500">
               Solve the clue, find the spot, and verify with GPS when you arrive.
             </p>
+          </div>
+        </div>
+
+        <div className="mt-5 animate-fadeIn rounded-2xl border-2 border-green-300 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-1.5">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <h3 className="text-xs font-bold text-stone-900">St George's Hall</h3>
+          </div>
+          <p className="mt-1.5 text-[11px] text-stone-600">St George's Hall — one of the finest neo-classical buildings in Europe.</p>
+          <div className="mt-3 flex items-center gap-3 rounded-lg bg-stone-50 p-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-900 text-white">
+              <Navigation className="h-4 w-4" style={{ transform: 'rotate(315deg)' }} />
+            </div>
+            <div className="flex-1">
+              <div className="text-[10px] text-stone-500">NW · 320 m</div>
+              <div className="text-xs font-semibold text-stone-900">Head that way</div>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-stone-100 py-2.5 text-[11px] font-semibold text-stone-900">
+            <MapPin className="h-3.5 w-3.5" />
+            Open in Google Maps
           </div>
         </div>
 

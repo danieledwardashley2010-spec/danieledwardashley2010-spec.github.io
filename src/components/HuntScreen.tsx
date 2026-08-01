@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { MapPin, Navigation, CheckCircle2, Eye, Compass, Trophy, Users, Crosshair, AlertCircle, Star, Camera, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, Navigation, CheckCircle2, Compass, Trophy, Users, Crosshair, AlertCircle, Star, Camera, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { distanceMeters, formatDistance, VERIFY_RADIUS_M } from '@/lib/geo';
 import type { HuntConfig, TeamStop, TeamWithMembers, SideQuest, TeamSideQuest } from '@/hunt/types';
@@ -40,7 +40,6 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
   const [sideQuests, setSideQuests] = useState<SideQuest[]>([]);
   const [teamSideQuests, setTeamSideQuests] = useState<TeamSideQuest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [revealed, setRevealed] = useState(false);
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'checking' | 'success' | 'failed' | 'denied'>('idle');
   const [distToTarget, setDistToTarget] = useState<number | null>(null);
@@ -198,7 +197,6 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
             .from('team_stops')
             .update({ verified: true, verified_at: new Date().toISOString() })
             .eq('id', currentStop.id);
-          setRevealed(false);
           setVerifying(false);
         } else {
           setGpsStatus('failed');
@@ -336,21 +334,9 @@ export default function HuntScreen({ huntId, teamId, teamName, memberId, config,
           </div>
 
           <div className="p-6">
-            {revealed ? (
-              <div className="animate-fadeIn">
-                <div className="text-xs font-semibold uppercase tracking-wide text-stone-500">You're looking for</div>
-                <div className="mt-1 text-2xl font-bold text-stone-900">{currentLocation?.name}</div>
-                <p className="mt-2 text-stone-600">{currentLocation?.reveal}</p>
-              </div>
-            ) : (
-              <button
-                onClick={() => setRevealed(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-stone-100 py-3 text-sm font-medium text-stone-600 transition hover:bg-stone-200"
-              >
-                <Eye className="h-4 w-4" />
-                Stuck? Reveal where you're headed
-              </button>
-            )}
+            <p className="text-sm text-stone-500">
+              Solve the clue, find the spot, and verify with GPS when you arrive. No hints — that is the whole point.
+            </p>
           </div>
         </div>
 

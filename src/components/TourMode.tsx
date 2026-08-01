@@ -135,8 +135,6 @@ const DEMO_QUESTS = [
 
 const DEMO_CLUE =
   'A Roman-temple facade looms over the city\u2019s main rail station. Stand under its colonnade and listen for the echo under the vaulted ceiling.';
-const DEMO_REVEAL_NAME = "St George's Hall";
-const DEMO_REVEAL_TEXT = 'St George\u2019s Hall \u2014 one of the finest neo-classical buildings in Europe.';
 
 /* ------------------------------------------------------------------ */
 /*  Progress dots                                                      */
@@ -681,11 +679,9 @@ function MockHuntClue() {
             <p className="mt-2.5 text-base leading-relaxed">{DEMO_CLUE}</p>
           </div>
           <div className="p-5">
-            <div className="animate-fadeIn">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">You're looking for</div>
-              <div className="mt-1 text-xl font-bold text-stone-900">{DEMO_REVEAL_NAME}</div>
-              <p className="mt-1.5 text-xs text-stone-600">{DEMO_REVEAL_TEXT}</p>
-            </div>
+            <p className="text-sm text-stone-500">
+              Solve the clue, find the spot, and verify with GPS when you arrive. No hints — that is the whole point.
+            </p>
           </div>
         </div>
 
@@ -750,9 +746,9 @@ function MockHuntGps() {
             <p className="mt-2.5 text-base leading-relaxed">{DEMO_CLUE}</p>
           </div>
           <div className="p-5">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">You're looking for</div>
-            <div className="mt-1 text-xl font-bold text-stone-900">{DEMO_REVEAL_NAME}</div>
-            <p className="mt-1.5 text-xs text-stone-600">{DEMO_REVEAL_TEXT}</p>
+            <p className="text-sm text-stone-500">
+              Solve the clue, find the spot, and verify with GPS when you arrive.
+            </p>
           </div>
         </div>
 

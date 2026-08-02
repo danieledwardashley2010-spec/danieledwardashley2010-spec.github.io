@@ -11,6 +11,7 @@ import {
   loadPlayerSession,
   clearPlayerSession,
 } from '@/lib/session';
+import InstallPrompt from '@/components/InstallPrompt';
 import HomeScreen from '@/components/HomeScreen';
 import SetupScreen from '@/components/SetupScreen';
 import LobbyScreen from '@/components/LobbyScreen';
@@ -315,7 +316,12 @@ function App() {
     return <TourMode onExit={() => setTourMode(false)} />;
   }
 
-  return <HomeScreen onCreate={handleCreate} onJoin={handleJoin} onStartTour={() => setTourMode(true)} />;
+  return (
+    <>
+      <HomeScreen onCreate={handleCreate} onJoin={handleJoin} onStartTour={() => setTourMode(true)} />
+      <InstallPrompt />
+    </>
+  );
 }
 
 export default App;

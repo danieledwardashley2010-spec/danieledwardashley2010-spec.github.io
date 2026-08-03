@@ -272,8 +272,7 @@ function App() {
     return <JoinScreen huntCode={joinCode} onJoined={handleJoined} onBack={goHome} />;
   }
 
-  if (!user && screen !== 'home') {
-    // If they're trying to create a hunt without being signed in, allow it but suggest signing in
+  if (!user && screen !== 'home' && screen !== 'competitions') {
     if (screen === 'setup') {
       // Allow setup without auth (single hunt mode)
     } else if (screen === 'lobby' || screen === 'hunt' || screen === 'finish') {

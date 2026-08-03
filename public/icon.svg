@@ -1,10 +1,54 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="96" fill="#1c1917"/>
-  <path d="M256 120 L256 280 L200 280" stroke="#f59e0b" stroke-width="24" stroke-linecap="round" fill="none"/>
-  <circle cx="256" cy="280" r="16" fill="#f59e0b"/>
-  <path d="M160 380 Q256 340 352 380" stroke="#f59e0b" stroke-width="16" stroke-linecap="round" fill="none"/>
-  <circle cx="256" cy="120" r="24" fill="#f59e0b"/>
-  <path d="M232 96 L280 96" stroke="#f59e0b" stroke-width="8" stroke-linecap="round"/>
-  <path d="M200 200 L312 200" stroke="#e7e5e4" stroke-width="12" stroke-linecap="round" opacity="0.4"/>
-  <path d="M200 240 L280 240" stroke="#e7e5e4" stroke-width="12" stroke-linecap="round" opacity="0.3"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#292524"/>
+      <stop offset="100%" stop-color="#1c1917"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Map / paper -->
+  <path d="M128 140 L196 120 L316 150 L384 130 L384 372 L316 392 L196 362 L128 382 Z"
+        fill="#3f3f46" stroke="#52525b" stroke-width="3" stroke-linejoin="round"/>
+  <!-- Fold lines -->
+  <line x1="196" y1="120" x2="196" y2="362" stroke="#52525b" stroke-width="2" opacity="0.6"/>
+  <line x1="316" y1="150" x2="316" y2="392" stroke="#52525b" stroke-width="2" opacity="0.6"/>
+  <line x1="128" y1="261" x2="384" y2="251" stroke="#52525b" stroke-width="2" opacity="0.4"/>
+
+  <!-- Dashed route on map -->
+  <path d="M160 340 Q200 280 250 300 Q310 325 360 270"
+        stroke="#fbbf24" stroke-width="4" stroke-dasharray="10 8" fill="none" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Small X marks the spot -->
+  <g stroke="#fbbf24" stroke-width="5" stroke-linecap="round" opacity="0.6">
+    <line x1="175" y1="180" x2="195" y2="200"/>
+    <line x1="195" y1="180" x2="175" y2="200"/>
+  </g>
+
+  <!-- Location pin (large, foreground) -->
+  <g transform="translate(256, 200)">
+    <!-- Pin shadow -->
+    <ellipse cx="0" cy="140" rx="32" ry="8" fill="#000" opacity="0.3"/>
+    <!-- Pin body -->
+    <path d="M0 -80 C-44 -80 -70 -50 -70 -20 C-70 20 -30 60 0 130 C30 60 70 20 70 -20 C70 -50 44 -80 0 -80 Z"
+          fill="url(#gold)" stroke="#92400e" stroke-width="4" stroke-linejoin="round"/>
+    <!-- Pin inner circle -->
+    <circle cx="0" cy="-25" r="22" fill="#1c1917"/>
+    <circle cx="0" cy="-25" r="14" fill="url(#gold)"/>
+  </g>
+
+  <!-- Star sparkle top-right -->
+  <g transform="translate(380, 110)">
+    <path d="M0 -16 L4 -4 L16 0 L4 4 L0 16 L-4 4 L-16 0 L-4 -4 Z" fill="#fbbf24" opacity="0.8"/>
+  </g>
+  <!-- Small star bottom-left -->
+  <g transform="translate(130, 400) scale(0.6)">
+    <path d="M0 -16 L4 -4 L16 0 L4 4 L0 16 L-4 4 L-16 0 L-4 -4 Z" fill="#fbbf24" opacity="0.5"/>
+  </g>
 </svg>

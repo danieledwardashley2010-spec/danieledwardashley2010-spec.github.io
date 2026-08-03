@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { HuntConfig } from '@/hunt/types';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
 import { pickHuntStops, generateHuntCode, generateHostId, defaultFinalMessage } from '@/hunt/builder';
 import { seedSideQuests } from '@/lib/hostApi';
 import {
@@ -12,7 +13,9 @@ import {
   clearPlayerSession,
 } from '@/lib/session';
 import InstallPrompt from '@/components/InstallPrompt';
+import AuthScreen from '@/components/AuthScreen';
 import HomeScreen from '@/components/HomeScreen';
+import CompetitionsScreen from '@/components/CompetitionsScreen';
 import SetupScreen from '@/components/SetupScreen';
 import LobbyScreen from '@/components/LobbyScreen';
 import JoinScreen from '@/components/JoinScreen';
@@ -20,7 +23,7 @@ import HuntScreen from '@/components/HuntScreen';
 import FinishScreen from '@/components/FinishScreen';
 import TourMode from '@/components/TourMode';
 
-type Screen = 'home' | 'setup' | 'lobby' | 'join' | 'hunt' | 'finish';
+type Screen = 'home' | 'setup' | 'lobby' | 'join' | 'hunt' | 'finish' | 'competitions';
 
 interface HuntState {
   huntId: string;
@@ -37,6 +40,7 @@ interface JoinState {
 }
 
 function App() {
+  const { user, loading: authLoading } = useAuth();
   const [screen, setScreen] = useState<Screen>('home');
   const [huntState, setHuntState] = useState<HuntState | null>(null);
   const [joinState, setJoinState] = useState<JoinState | null>(null);
@@ -248,19 +252,35 @@ function App() {
     setHuntState(null);
     setJoinState(null);
     setJoinCode('');
-    setScreen('home');
+    setScreen(user ? 'competitions' : 'home');
     window.history.replaceState({}, '', window.location.pathname);
   };
 
   const goSetup = () => setScreen('setup');
 
   // ---- Render ----
-  if (restoring) {
+  if (authLoading || restoring) {
     return (
-      <div className="min-h-screen bg-stone-50 text-stone-900">
-        <div className="flex min-h-screen items-center justify-center text-stone-400">Loading your hunt...</div>
+      <div className="min-h-safe bg-stone-50 text-stone-900">
+        <div className="flex min-h-screen items-center justify-center text-stone-400">Loading...</div>
       </div>
     );
+  }
+
+  // Not signed in: show auth screen, but still allow join-by-code
+  if (!user && screen === 'join') {
+    return <JoinScreen huntCode={joinCode} onJoined={handleJoined} onBack={goHome} />;
+  }
+
+  if (!user && screen !== 'home') {
+    // If they're trying to create a hunt without being signed in, allow it but suggest signing in
+    if (screen === 'setup') {
+      // Allow setup without auth (single hunt mode)
+    } else if (screen === 'lobby' || screen === 'hunt' || screen === 'finish') {
+      // Allow playing without auth (join-by-code flow)
+    } else {
+      setScreen('home');
+    }
   }
 
   if (screen === 'finish' && huntState) {
@@ -316,9 +336,33 @@ function App() {
     return <TourMode onExit={() => setTourMode(false)} />;
   }
 
+  // Signed in: show competitions dashboard
+  if (user) {
+    return (
+      <>
+        <CompetitionsScreen
+          onCreateHunt={handleCreate}
+          onJoinHunt={handleJoin}
+          onStartTour={() => setTourMode(true)}
+        />
+        <InstallPrompt />
+      </>
+    );
+  }
+
+  // Not signed in: show home screen with sign-in option
   return (
     <>
-      <HomeScreen onCreate={handleCreate} onJoin={handleJoin} onStartTour={() => setTourMode(true)} />
+      {screen === ('competitions' as Screen) ? (
+        <AuthScreen onBack={goHome} />
+      ) : (
+        <HomeScreen
+          onCreate={handleCreate}
+          onJoin={handleJoin}
+          onStartTour={() => setTourMode(true)}
+          onSignIn={() => setScreen('competitions' as Screen)}
+        />
+      )}
       <InstallPrompt />
     </>
   );

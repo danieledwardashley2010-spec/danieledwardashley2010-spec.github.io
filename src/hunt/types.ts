@@ -114,3 +114,45 @@ export interface TeamWithMembers extends Team {
   team_stops: TeamStop[];
   team_side_quests?: TeamSideQuest[];
 }
+
+export interface Competition {
+  id: string;
+  name: string;
+  description: string | null;
+  organiser_id: string;
+  status: string;
+  created_at: string;
+}
+
+export interface Round {
+  id: string;
+  competition_id: string;
+  hunt_id: string | null;
+  round_number: number;
+  status: string;
+  created_at: string;
+}
+
+export interface CompetitionTeam {
+  id: string;
+  competition_id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+export interface CompetitionTeamMember {
+  id: string;
+  competition_team_id: string;
+  user_id: string | null;
+  display_name: string;
+  created_at: string;
+}
+
+export interface CompetitionTeamWithMembers extends CompetitionTeam {
+  competition_team_members: CompetitionTeamMember[];
+}
+
+export interface RoundWithHunt extends Round {
+  hunts: { code: string; status: string; config: HuntConfig } | null;
+}

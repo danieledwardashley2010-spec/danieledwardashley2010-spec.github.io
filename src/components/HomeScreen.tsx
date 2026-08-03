@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { MapPin, Compass, Users, ArrowRight, PlayCircle } from 'lucide-react';
+import { MapPin, Compass, Users, ArrowRight, PlayCircle, LogIn, Trophy } from 'lucide-react';
 
 interface Props {
   onCreate: () => void;
   onJoin: (code: string) => void;
   onStartTour: () => void;
+  onSignIn: () => void;
 }
 
-export default function HomeScreen({ onCreate, onJoin, onStartTour }: Props) {
+export default function HomeScreen({ onCreate, onJoin, onStartTour, onSignIn }: Props) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
 
@@ -97,6 +98,27 @@ export default function HomeScreen({ onCreate, onJoin, onStartTour }: Props) {
           <PlayCircle className="h-5 w-5" />
           Take a guided tour
         </button>
+
+        <div className="mt-6 border-t border-stone-200 pt-6">
+          <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-900 text-white">
+              <Trophy className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-stone-900">Organise teams & competitions</h3>
+              <p className="mt-0.5 text-xs text-stone-500">
+                Sign in to set up teams in advance and run multi-round hunts.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onSignIn}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-stone-900 py-3.5 font-semibold text-white transition hover:bg-stone-800"
+          >
+            <LogIn className="h-5 w-5" />
+            Sign in or create account
+          </button>
+        </div>
       </div>
     </div>
   );

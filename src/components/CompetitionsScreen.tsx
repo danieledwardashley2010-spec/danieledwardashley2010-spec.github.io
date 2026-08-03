@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Trophy, Plus, ArrowRight, ArrowLeft, Users, Layers, Calendar, LogOut, MapPin, Pencil, X, Check, Star } from 'lucide-react';
+import { Trophy, Plus, ArrowRight, ArrowLeft, Users, Layers, Calendar, LogOut, MapPin, Pencil, X, Check, Star, MailWarning, Send } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import type { Competition, RoundWithHunt, CompetitionTeamWithMembers } from '@/hunt/types';
@@ -11,7 +11,15 @@ interface Props {
 }
 
 export default function CompetitionsScreen({ onCreateHunt, onJoinHunt, onStartTour }: Props) {
-  const { user, profile, signOut, updateDisplayName } = useAuth();
+  const { user, profile, signOut, updateDisplayName, resendVerificationEmail } = useAuth();
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const emailUnverified = !!user && !user.email_confirmed_at;
+
+  const handleResend = async () => {
+    setResendState('sending');
+    const { error } = await resendVerificationEmail();
+    setResendState(error ? 'error' : 'sent');
+  };
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedComp, setSelectedComp] = useState<Competition | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +117,35 @@ export default function CompetitionsScreen({ onCreateHunt, onJoinHunt, onStartTo
       </div>
 
       <div className="mx-auto max-w-3xl px-6 py-8">
+        {/* Email verification banner */}
+        {emailUnverified && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-400 text-stone-900">
+              <MailWarning className="h-4 w-4" />
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-bold text-amber-900">Verify your email</div>
+              <p className="mt-0.5 text-xs text-amber-800">
+                We sent a verification link to <strong>{user?.email}</strong>. Click it to confirm your account.
+              </p>
+              {resendState === 'sent' ? (
+                <p className="mt-2 text-xs font-medium text-emerald-700">Verification email resent — check your inbox.</p>
+              ) : resendState === 'error' ? (
+                <p className="mt-2 text-xs font-medium text-red-600">Could not resend. Try again in a moment.</p>
+              ) : (
+                <button
+                  onClick={handleResend}
+                  disabled={resendState === 'sending'}
+                  className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-amber-900 hover:underline disabled:opacity-50"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  {resendState === 'sending' ? 'Sending...' : 'Resend verification email'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Profile name editor */}
         <div className="mb-6 flex items-center gap-3 rounded-2xl border border-stone-200 bg-white p-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">

@@ -13,11 +13,12 @@ interface AuthContextValue {
   profile: Profile | null;
   loading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<{ error: string | null }>;
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<{ error: string | null; needsVerification: boolean }>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   updateDisplayName: (name: string) => Promise<void>;
+  resendVerificationEmail: () => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -78,14 +79,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: { data: { full_name: displayName } },
     });
-    if (error) return { error: error.message };
+    if (error) return { error: error.message, needsVerification: false };
     if (data.user) {
       await supabase.from('profiles').upsert({
         id: data.user.id,
         display_name: displayName,
       });
     }
-    return { error: null };
+    const needsVerification = !data.session && !!data.user;
+    return { error: null, needsVerification };
+  };
+
+  const resendVerificationEmail = async () => {
+    if (!user?.email) return { error: 'No user signed in.' };
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: user.email,
+    });
+    return { error: error?.message ?? null };
   };
 
   const signInWithGoogle = async () => {
@@ -126,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithApple,
         signOut,
         updateDisplayName,
+        resendVerificationEmail,
       }}
     >
       {children}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Mail, Lock, User as UserIcon, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { MapPin, Mail, Lock, User as UserIcon, ArrowLeft, Loader2, AlertCircle, MailCheck, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
 type Mode = 'signin' | 'signup';
@@ -12,6 +12,7 @@ export default function AuthScreen({ onBack }: { onBack: () => void }) {
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const handleSubmit = async () => {
     setError('');
@@ -29,7 +30,11 @@ export default function AuthScreen({ onBack }: { onBack: () => void }) {
         ? await signInWithEmail(email.trim(), password)
         : await signUpWithEmail(email.trim(), password, displayName.trim());
     setBusy(false);
-    if (result.error) setError(result.error);
+    if (result.error) {
+      setError(result.error);
+    } else if (mode === 'signup' && 'needsVerification' in result && result.needsVerification) {
+      setVerificationSent(true);
+    }
   };
 
   return (
@@ -66,6 +71,34 @@ export default function AuthScreen({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="mx-auto max-w-md px-6 py-8">
+        {verificationSent ? (
+          <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-6 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white">
+              <MailCheck className="h-7 w-7" />
+            </div>
+            <h2 className="text-lg font-bold text-stone-900">Check your inbox</h2>
+            <p className="mt-2 text-sm text-stone-600">
+              We've sent a verification link to <strong>{email}</strong>. Click the link in the email to confirm your account, then come back here to sign in.
+            </p>
+            <button
+              onClick={() => {
+                setVerificationSent(false);
+                setMode('signin');
+              }}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-stone-900 py-3.5 font-semibold text-white transition hover:bg-stone-800"
+            >
+              <CheckCircle2 className="h-5 w-5" />
+              I've verified — sign in
+            </button>
+            <button
+              onClick={() => setVerificationSent(false)}
+              className="mt-2 text-sm text-stone-400 hover:text-stone-900"
+            >
+              Back to sign up
+            </button>
+          </div>
+        ) : (
+        <>
         {/* Social sign-in */}
         <div className="space-y-3">
           <button
@@ -174,6 +207,8 @@ export default function AuthScreen({ onBack }: { onBack: () => void }) {
             {mode === 'signin' ? 'Sign up' : 'Sign in'}
           </button>
         </p>
+        </>
+        )}
       </div>
     </div>
   );
